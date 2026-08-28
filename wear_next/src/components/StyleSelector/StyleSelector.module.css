@@ -1,0 +1,47 @@
+.styleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.stylePill {
+  padding: 0.65rem 0.85rem;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.stylePill:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.styleActive {
+  border-color: #4f46e5;
+  background: #f5f3ff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+}
+
+.styleName {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.styleActive .styleName {
+  color: #4338ca;
+}
+
+.styleDesc {
+  font-size: 0.725rem;
+  color: #64748b;
+  line-height: 1.2;
+}
