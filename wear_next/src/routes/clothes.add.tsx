@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import React, { useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { type ClothingCategory } from '../types'
+import { addClothesItem } from '../functions/mutations/addClothesItem'
 import { Input } from '../components/Input/Input'
 import { ColorPicker } from '../components/ColorPicker/ColorPicker'
 import { StyleSelector } from '../components/StyleSelector/StyleSelector'
@@ -8,40 +10,113 @@ import { CategorySelector } from '../components/CategorySelector/CategorySelecto
 import { Button } from '../components/Button/Button'
 import styles from './clothes.add.module.css'
 
+// ── Server functions ──────────────────────────────────────────────────────────
+
+/**
+ * Saves an uploaded image to public/images/<slug>/ on the server.
+ * Accepts base64-encoded file data from the client.
+ * Returns the public URL path of the saved image.
+ */
+const uploadImage = createServerFn({ method: 'POST' })
+  .validator((data: { base64: string; fileName: string; itemName: string }) => data)
+  .handler(async ({ data }) => {
+    const { writeFile, mkdir } = await import('node:fs/promises')
+    const { join, extname } = await import('node:path')
+    const { cwd } = await import('node:process')
+
+    const slug = data.itemName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+
+    const ext = extname(data.fileName) || '.jpg'
+    const dir = join(cwd(), 'public', 'images', slug)
+    await mkdir(dir, { recursive: true })
+
+    const filePath = join(dir, `image${ext}`)
+    await writeFile(filePath, Buffer.from(data.base64, 'base64'))
+
+    return `/images/${slug}/image${ext}`
+  })
+
+/**
+ * Creates the ClothesItem node in CognoDB.
+ */
+const createClothesItem = createServerFn({ method: 'POST' })
+  .validator((data: {
+    itemName: string
+    category: ClothingCategory
+    color: string
+    style: string
+    imageUrl?: string
+  }) => data)
+  .handler(({ data }) => addClothesItem(data))
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
 export const Route = createFileRoute('/clothes/add')({ component: AddClothes })
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 interface FormState {
   itemName: string
   category: ClothingCategory
   color: string
   style: string
-  imageUrl: string
 }
 
 function AddClothes() {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
 
   const [form, setForm] = useState<FormState>({
     itemName: '',
     category: 'Top',
     color: '',
     style: '',
-    imageUrl: '',
   })
 
-  // ── Image preview ─────────────────────────────────────────────
+  // Image stored separately: preview URL (blob) + raw file for upload
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string>('')
+
+  // ── Image pick ────────────────────────────────────────────────
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    setForm((prev) => ({ ...prev, imageUrl: url }))
+    setImageFile(file)
+    setImagePreviewUrl(URL.createObjectURL(file))
   }
 
-  // ── Submit (UI only) ──────────────────────────────────────────
-  function handleSubmit(e: React.FormEvent) {
+  // ── Submit ────────────────────────────────────────────────────
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    console.log('Submitted item (UI preview):', form)
-    alert(`✅ "${form.itemName}" added! (UI only — no backend yet)`)
+    setError('')
+    setIsSubmitting(true)
+
+    try {
+      let imageUrl: string | undefined
+
+      // 1. Upload image if selected
+      if (imageFile) {
+        const base64 = await fileToBase64(imageFile)
+        imageUrl = await uploadImage({
+          data: { base64, fileName: imageFile.name, itemName: form.itemName },
+        })
+      }
+
+      // 2. Create the graph node
+      await createClothesItem({ data: { ...form, imageUrl } })
+
+      // 3. Navigate back to home
+      navigate({ to: '/' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isValid = form.itemName.trim() && form.color && form.style
@@ -56,11 +131,9 @@ function AddClothes() {
 
         <form className={styles.form} onSubmit={handleSubmit}>
 
-          {/* ── Item Name ─────────────────────────────────── */}
+          {/* ── Item Name ───────────────────────────────────── */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="itemName">
-              Item Name
-            </label>
+            <label className={styles.label} htmlFor="itemName">Item Name</label>
             <Input
               id="itemName"
               placeholder="e.g. Classic Oxford White Shirt"
@@ -74,7 +147,7 @@ function AddClothes() {
             />
           </div>
 
-          {/* ── Category ──────────────────────────────────── */}
+          {/* ── Category ────────────────────────────────────── */}
           <div className={styles.field}>
             <label className={styles.label}>Category</label>
             <CategorySelector
@@ -83,7 +156,7 @@ function AddClothes() {
             />
           </div>
 
-          {/* ── Color ─────────────────────────────────────── */}
+          {/* ── Color ───────────────────────────────────────── */}
           <div className={styles.field}>
             <label className={styles.label}>Color</label>
             <ColorPicker
@@ -92,7 +165,7 @@ function AddClothes() {
             />
           </div>
 
-          {/* ── Style ─────────────────────────────────────── */}
+          {/* ── Style ───────────────────────────────────────── */}
           <div className={styles.field}>
             <label className={styles.label}>Style</label>
             <StyleSelector
@@ -101,22 +174,13 @@ function AddClothes() {
             />
           </div>
 
-          {/* ── Image ─────────────────────────────────────── */}
+          {/* ── Image ───────────────────────────────────────── */}
           <div className={styles.field}>
             <label className={styles.label}>Image (optional)</label>
             <div className={styles.imageUpload}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-              />
-              {form.imageUrl ? (
-                <img
-                  src={form.imageUrl}
-                  alt="Preview"
-                  className={styles.imagePreview}
-                />
+              <input type="file" accept="image/*" onChange={handleImageChange} />
+              {imagePreviewUrl ? (
+                <img src={imagePreviewUrl} alt="Preview" className={styles.imagePreview} />
               ) : (
                 <>
                   <svg className={styles.uploadIcon} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -131,14 +195,17 @@ function AddClothes() {
             </div>
           </div>
 
-          {/* ── Submit ────────────────────────────────────── */}
+          {/* ── Error ───────────────────────────────────────── */}
+          {error && <p className={styles.errorText}>{error}</p>}
+
+          {/* ── Submit ──────────────────────────────────────── */}
           <div className={styles.submitRow}>
             <Button
               type="submit"
-              label="Add to Wardrobe"
+              label={isSubmitting ? 'Saving…' : 'Add to Wardrobe'}
               variant="gradient"
               size="md"
-              disabled={!isValid}
+              disabled={!isValid || isSubmitting}
               icon={
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -152,4 +219,15 @@ function AddClothes() {
       </div>
     </main>
   )
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string).split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
