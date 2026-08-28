@@ -1,0 +1,8 @@
+[build]
+  base = "wear_next"
+  command = "pnpm build"
+  publish = "dist/client"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "COGNO_USER"
+  SECRETS_SCAN_OMIT_PATHS = "README.md,wear_next/README.md"
