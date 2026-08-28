@@ -3,21 +3,35 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { type ClothesItem, type ClothingCategory, type OutfitState } from '../types'
 import { getAllClothes, getMatchingSuggestions } from '../functions/queries'
+import { logError } from '../functions/logger'
 import { CatalogGrid } from '../components/CatalogGrid/CatalogGrid'
 import { MatchedOutfitPreview } from '../components/MatchedOutfitPreview/MatchedOutfitPreview'
 import styles from './index.module.css'
 
 // ── Server functions ──────────────────────────────────────────────────────────
 
-/** Load all clothes on initial page load */
-const fetchAllClothes = createServerFn({ method: 'GET' }).handler(() =>
-  getAllClothes(),
-)
+/** Load all clothes on initial page load with centralized error handling */
+const fetchAllClothes = createServerFn({ method: 'GET' }).handler(async () => {
+  try {
+    return await getAllClothes()
+  } catch (error) {
+    await logError('ServerFn: fetchAllClothes', error)
+    // Return empty list gracefully without breaking client render
+    return []
+  }
+})
 
-/** Load matching suggestions given the IDs of already-selected items */
+/** Load matching suggestions with centralized error handling */
 const fetchSuggestions = createServerFn({ method: 'GET' })
   .validator((ids: string[]) => ids)
-  .handler(({ data: selectedIds }) => getMatchingSuggestions(selectedIds))
+  .handler(async ({ data: selectedIds }) => {
+    try {
+      return await getMatchingSuggestions(selectedIds)
+    } catch (error) {
+      await logError('ServerFn: fetchSuggestions', error)
+      return []
+    }
+  })
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -95,6 +109,9 @@ function App() {
     try {
       const suggestions = await fetchSuggestions({ data: selectedIds })
       setCatalogItems(suggestions.length > 0 ? suggestions : allClothes)
+    } catch (err) {
+      // Fallback to all clothes on client failure
+      setCatalogItems(allClothes)
     } finally {
       setIsLoading(false)
     }
@@ -156,12 +173,13 @@ function App() {
         {/* ── Left: Catalog ───────────────────────────────── */}
         <div className={`${styles.catalogPanel} ${isMobileCatalog ? styles.mobileVisible : ''}`}>
           <CatalogGrid
-            items={isLoading ? [] : filteredItems}
+            items={filteredItems}
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
             onSelectItem={handleSelectItem}
             onMobileBack={handleMobileBack}
             title={activeSlot ? `Choose ${activeSlot}` : 'Wardrobe Catalog'}
+            isLoading={isLoading}
           />
         </div>
 

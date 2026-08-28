@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { type ClothingCategory } from '../types'
 import { addClothesItem } from '../functions/mutations/addClothesItem'
+import { logError } from '../functions/logger'
 import { Input } from '../components/Input/Input'
 import { ColorPicker } from '../components/ColorPicker/ColorPicker'
 import { StyleSelector } from '../components/StyleSelector/StyleSelector'
@@ -14,26 +15,31 @@ import styles from './clothes.add.module.css'
 
 /**
  * Saves an uploaded image to public/images/<itemName> on the server.
- * Accepts base64-encoded file data from the client.
+ * Logs any file system failures to logs/errors.txt.
  */
 const uploadImage = createServerFn({ method: 'POST' })
   .validator((data: { base64: string; itemName: string }) => data)
   .handler(async ({ data }) => {
-    const { writeFile, mkdir } = await import('node:fs/promises')
-    const { join } = await import('node:path')
-    const { cwd } = await import('node:process')
+    try {
+      const { writeFile, mkdir } = await import('node:fs/promises')
+      const { join } = await import('node:path')
+      const { cwd } = await import('node:process')
 
-    const dir = join(cwd(), 'public', 'images')
-    await mkdir(dir, { recursive: true })
+      const dir = join(cwd(), 'public', 'images')
+      await mkdir(dir, { recursive: true })
 
-    const filePath = join(dir, data.itemName)
-    await writeFile(filePath, Buffer.from(data.base64, 'base64'))
+      const filePath = join(dir, data.itemName)
+      await writeFile(filePath, Buffer.from(data.base64, 'base64'))
 
-    return `/images/${data.itemName}`
+      return `/images/${data.itemName}`
+    } catch (error) {
+      await logError('ServerFn: uploadImage', error)
+      throw new Error('Image upload failed. Please try again.')
+    }
   })
 
 /**
- * Creates the ClothesItem node in CognoDB (no imageUrl stored in DB).
+ * Creates the ClothesItem node in CognoDB with centralized error logging.
  */
 const createClothesItem = createServerFn({ method: 'POST' })
   .validator((data: {
@@ -42,7 +48,14 @@ const createClothesItem = createServerFn({ method: 'POST' })
     color: string
     style: string
   }) => data)
-  .handler(({ data }) => addClothesItem(data))
+  .handler(async ({ data }) => {
+    try {
+      return await addClothesItem(data)
+    } catch (error) {
+      await logError('ServerFn: createClothesItem', error)
+      throw new Error('Failed to save item to database. Please check connection.')
+    }
+  })
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
