@@ -7,13 +7,11 @@ interface AddClothesInput {
   category: ClothingCategory;
   color: string;
   style: string;
-  imageUrl?: string;
 }
 
 /**
  * Creates a new ClothesItem node in the graph with its Color and Style links.
- * Sub-label (Top | Bottom | Shoes) is injected from `category` — safe because
- * it is validated as a ClothingCategory enum before reaching this function.
+ * No image URL is stored in the database.
  */
 export async function addClothesItem(input: AddClothesInput): Promise<string> {
   const session = driver.session();
@@ -23,8 +21,7 @@ export async function addClothesItem(input: AddClothesInput): Promise<string> {
     await session.run(
       `
       MERGE (item:ClothesItem:${input.category} { id: $id })
-      SET item.itemName = $itemName,
-          item.imageUrl = $imageUrl
+      SET item.itemName = $itemName
       WITH item
       MATCH (c:Color { name: $color })
       MERGE (item)-[:IN_COLOR]->(c)
@@ -35,7 +32,6 @@ export async function addClothesItem(input: AddClothesInput): Promise<string> {
       {
         id,
         itemName: input.itemName,
-        imageUrl: input.imageUrl ?? null,
         color: input.color,
         style: input.style,
       },

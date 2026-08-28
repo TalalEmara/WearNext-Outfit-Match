@@ -77,13 +77,17 @@ export async function getMatchingSuggestions(
       { selectedIds },
     );
 
-    return result.records.map((r) => ({
-      id:       r.get("id"),
-      itemName: r.get("itemName"),
-      category: r.get("category") as ClothingCategory,
-      color:    r.get("color"),
-      style:    r.get("style"),
-    }));
+    return result.records.map((r) => {
+      const itemName = r.get("itemName");
+      return {
+        id:       r.get("id"),
+        itemName,
+        category: r.get("category") as ClothingCategory,
+        color:    r.get("color"),
+        style:    r.get("style"),
+        imageUrl: `/images/${itemName}`,
+      };
+    });
   } finally {
     await session.close();
   }
