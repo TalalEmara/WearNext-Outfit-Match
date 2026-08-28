@@ -1,4 +1,4 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Navbar } from '../components/Navbar/Navbar'
@@ -17,7 +17,24 @@ export const Route = createRootRoute({
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
   shellComponent: RootDocument,
+  component: RootComponent,
+  notFoundComponent: () => (
+    <div style={{ padding: '2rem', textAlign: 'center' }}>
+      <h2>Page Not Found</h2>
+      <p>The page you requested does not exist.</p>
+      <a href="/" style={{ color: '#6366f1', textDecoration: 'underline' }}>Return Home</a>
+    </div>
+  ),
 })
+
+function RootComponent() {
+  return (
+    <>
+      <Navbar />
+      <Outlet />
+    </>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
@@ -27,7 +44,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <Navbar />
         {children}
         <TanStackDevtools
           config={{ position: 'bottom-right' }}
