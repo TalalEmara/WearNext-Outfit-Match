@@ -1,0 +1,56 @@
+/* ─── Page shell ─────────────────────────────────────────────── */
+.page {
+  min-height: calc(100vh - 64px); /* below Navbar */
+  padding: 1.5rem 1.25rem 2rem;
+  box-sizing: border-box;
+}
+
+/* ─── Two-panel grid ─────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 340px; /* left grows, right fixed */
+  gap: 1.5rem;
+  align-items: start;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Left (catalog) panel */
+.catalogPanel {
+  min-width: 0; /* allow shrinking */
+}
+
+/* Right (outfit) panel – sticky so it stays in view while scrolling catalog */
+.outfitPanel {
+  min-width: 300px;
+}
+
+/* ─── Mobile ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page {
+    padding: 1rem 0.75rem 1.5rem;
+  }
+
+  /* Stack to single column, each panel takes full width */
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Hide catalog on mobile by default — shown when mobileView === "catalog" */
+  .catalogPanel {
+    display: none;
+  }
+
+  .catalogPanel.mobileVisible {
+    display: block;
+  }
+
+  /* Hide outfit panel on mobile when catalog is open */
+  .outfitPanel {
+    display: block;
+  }
+
+  .outfitPanel.mobileHidden {
+    display: none;
+  }
+}
