@@ -23,6 +23,7 @@ const fetchSuggestions = createServerFn({ method: 'GET' })
 
 export const Route = createFileRoute('/')({
   loader: () => fetchAllClothes(),
+  staleTime: 0,
   component: App,
 })
 
@@ -41,6 +42,14 @@ function App() {
   // ── Catalog items (start with everything, swap for matches) ────
   const [catalogItems, setCatalogItems] = useState<ClothesItem[]>(allClothes)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Synchronize catalogItems when allClothes updates from server loader
+  React.useEffect(() => {
+    const hasSelected = Object.values(outfit).some(Boolean)
+    if (!hasSelected) {
+      setCatalogItems(allClothes)
+    }
+  }, [allClothes])
 
   // ── Filter tab state (All / Top / Bottom / Shoes) ──────────────
   const [selectedCategory, setSelectedCategory] = useState<'All' | ClothingCategory>('All')

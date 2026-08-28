@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { type ClothingCategory } from '../types'
 import { addClothesItem } from '../functions/mutations/addClothesItem'
@@ -13,35 +13,27 @@ import styles from './clothes.add.module.css'
 // ── Server functions ──────────────────────────────────────────────────────────
 
 /**
- * Saves an uploaded image to public/images/<slug>/ on the server.
+ * Saves an uploaded image to public/images/<itemName> on the server.
  * Accepts base64-encoded file data from the client.
- * Returns the public URL path of the saved image.
  */
 const uploadImage = createServerFn({ method: 'POST' })
-  .validator((data: { base64: string; fileName: string; itemName: string }) => data)
+  .validator((data: { base64: string; itemName: string }) => data)
   .handler(async ({ data }) => {
     const { writeFile, mkdir } = await import('node:fs/promises')
-    const { join, extname } = await import('node:path')
+    const { join } = await import('node:path')
     const { cwd } = await import('node:process')
 
-    const slug = data.itemName
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')
-
-    const ext = extname(data.fileName) || '.jpg'
-    const dir = join(cwd(), 'public', 'images', slug)
+    const dir = join(cwd(), 'public', 'images')
     await mkdir(dir, { recursive: true })
 
-    const filePath = join(dir, `image${ext}`)
+    const filePath = join(dir, data.itemName)
     await writeFile(filePath, Buffer.from(data.base64, 'base64'))
 
-    return `/images/${slug}/image${ext}`
+    return `/images/${data.itemName}`
   })
 
 /**
- * Creates the ClothesItem node in CognoDB.
+ * Creates the ClothesItem node in CognoDB (no imageUrl stored in DB).
  */
 const createClothesItem = createServerFn({ method: 'POST' })
   .validator((data: {
@@ -49,7 +41,6 @@ const createClothesItem = createServerFn({ method: 'POST' })
     category: ClothingCategory
     color: string
     style: string
-    imageUrl?: string
   }) => data)
   .handler(({ data }) => addClothesItem(data))
 
@@ -68,6 +59,7 @@ interface FormState {
 
 function AddClothes() {
   const navigate = useNavigate()
+  const router = useRouter()
 
   const [form, setForm] = useState<FormState>({
     itemName: '',
@@ -97,21 +89,22 @@ function AddClothes() {
     setIsSubmitting(true)
 
     try {
-      let imageUrl: string | undefined
-
-      // 1. Upload image if selected
+      // 1. Upload image if selected (saved to public/images/<itemName>)
       if (imageFile) {
         const base64 = await fileToBase64(imageFile)
-        imageUrl = await uploadImage({
-          data: { base64, fileName: imageFile.name, itemName: form.itemName },
+        await uploadImage({
+          data: { base64, itemName: form.itemName },
         })
       }
 
-      // 2. Create the graph node
-      await createClothesItem({ data: { ...form, imageUrl } })
+      // 2. Create the graph node in DB
+      await createClothesItem({ data: form })
 
-      // 3. Navigate back to home
-      navigate({ to: '/' })
+      // 3. Invalidate router cache so the homepage loads the newly added item
+      await router.invalidate()
+
+      // 4. Navigate back to home
+      await navigate({ to: '/' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
