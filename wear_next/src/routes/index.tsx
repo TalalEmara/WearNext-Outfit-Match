@@ -1,65 +1,104 @@
 import React, { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { type ClothesItem, type ClothingCategory, type OutfitState } from '../types'
-import { MOCK_CLOTHES } from '../mocks/clothes.mock'
+import { getAllClothes, getMatchingSuggestions } from '../functions/queries'
 import { CatalogGrid } from '../components/CatalogGrid/CatalogGrid'
 import { MatchedOutfitPreview } from '../components/MatchedOutfitPreview/MatchedOutfitPreview'
 import styles from './index.module.css'
 
-export const Route = createFileRoute('/')({ component: App })
+// ── Server functions ──────────────────────────────────────────────────────────
+
+/** Load all clothes on initial page load */
+const fetchAllClothes = createServerFn({ method: 'GET' }).handler(() =>
+  getAllClothes(),
+)
+
+/** Load matching suggestions given the IDs of already-selected items */
+const fetchSuggestions = createServerFn({ method: 'GET' })
+  .validator((ids: string[]) => ids)
+  .handler(({ data: selectedIds }) => getMatchingSuggestions(selectedIds))
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
+export const Route = createFileRoute('/')({
+  loader: () => fetchAllClothes(),
+  component: App,
+})
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 function App() {
-  // ── Outfit state ─────────────────────────────────────────────
+  const allClothes = Route.useLoaderData()
+
+  // ── Outfit state ───────────────────────────────────────────────
   const [outfit, setOutfit] = useState<OutfitState>({
     Top: null,
     Bottom: null,
     Shoes: null,
   })
 
-  // ── Catalog filter ────────────────────────────────────────────
+  // ── Catalog items (start with everything, swap for matches) ────
+  const [catalogItems, setCatalogItems] = useState<ClothesItem[]>(allClothes)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // ── Filter tab state (All / Top / Bottom / Shoes) ──────────────
   const [selectedCategory, setSelectedCategory] = useState<'All' | ClothingCategory>('All')
 
-  // ── Mobile view: "outfit" is default, "catalog" opens on slot click
+  // ── Mobile view ────────────────────────────────────────────────
   const [mobileView, setMobileView] = useState<'outfit' | 'catalog'>('outfit')
-
-  // ── Which slot was clicked (auto-filters the catalog) ─────────
   const [activeSlot, setActiveSlot] = useState<ClothingCategory | null>(null)
 
-  // ── Filtered items ────────────────────────────────────────────
+  // ── Filtered items (client-side category tab) ──────────────────
   const filteredItems =
     selectedCategory === 'All'
-      ? MOCK_CLOTHES
-      : MOCK_CLOTHES.filter((item) => item.category === selectedCategory)
+      ? catalogItems
+      : catalogItems.filter((item) => item.category === selectedCategory)
 
-  // ── Handlers ─────────────────────────────────────────────────
+  // ── Refresh suggestions whenever outfit changes ────────────────
+  async function refreshSuggestions(updatedOutfit: OutfitState) {
+    const selectedIds = Object.values(updatedOutfit)
+      .filter(Boolean)
+      .map((item) => (item as ClothesItem).id)
 
-  /** When the user clicks an outfit slot → open catalog filtered to that slot */
+    setIsLoading(true)
+    try {
+      const suggestions = await fetchSuggestions({ data: selectedIds })
+      setCatalogItems(suggestions.length > 0 ? suggestions : allClothes)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // ── Handlers ───────────────────────────────────────────────────
+
   function handleSlotClick(category: ClothingCategory) {
     setActiveSlot(category)
     setSelectedCategory(category)
     setMobileView('catalog')
   }
 
-  /** When an item is selected from the catalog → fill the slot, return to outfit on mobile */
-  function handleSelectItem(item: ClothesItem) {
-    setOutfit((prev) => ({ ...prev, [item.category]: item }))
+  async function handleSelectItem(item: ClothesItem) {
+    const updatedOutfit = { ...outfit, [item.category]: item }
+    setOutfit(updatedOutfit)
     setMobileView('outfit')
     setActiveSlot(null)
+    await refreshSuggestions(updatedOutfit)
   }
 
-  /** Remove a single slot's item */
-  function handleClearSlot(category: ClothingCategory, e: React.MouseEvent) {
+  async function handleClearSlot(category: ClothingCategory, e: React.MouseEvent) {
     e.stopPropagation()
-    setOutfit((prev) => ({ ...prev, [category]: null }))
+    const updatedOutfit = { ...outfit, [category]: null }
+    setOutfit(updatedOutfit)
+    await refreshSuggestions(updatedOutfit)
   }
 
-  /** Reset entire outfit */
-  function handleResetOutfit() {
+  async function handleResetOutfit() {
     setOutfit({ Top: null, Bottom: null, Shoes: null })
     setActiveSlot(null)
+    setCatalogItems(allClothes)
   }
 
-  /** Mobile "Back to Outfit" from catalog */
   function handleMobileBack() {
     setMobileView('outfit')
     setActiveSlot(null)
@@ -71,11 +110,9 @@ function App() {
     <main className={styles.page}>
       <div className={styles.grid}>
         {/* ── Left: Catalog ───────────────────────────────── */}
-        <div
-          className={`${styles.catalogPanel} ${isMobileCatalog ? styles.mobileVisible : ''}`}
-        >
+        <div className={`${styles.catalogPanel} ${isMobileCatalog ? styles.mobileVisible : ''}`}>
           <CatalogGrid
-            items={filteredItems}
+            items={isLoading ? [] : filteredItems}
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
             onSelectItem={handleSelectItem}
@@ -85,9 +122,7 @@ function App() {
         </div>
 
         {/* ── Right: Outfit Preview ────────────────────────── */}
-        <div
-          className={`${styles.outfitPanel} ${isMobileCatalog ? styles.mobileHidden : ''}`}
-        >
+        <div className={`${styles.outfitPanel} ${isMobileCatalog ? styles.mobileHidden : ''}`}>
           <MatchedOutfitPreview
             outfit={outfit}
             onSlotClick={handleSlotClick}
