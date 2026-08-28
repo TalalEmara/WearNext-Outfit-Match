@@ -1,0 +1,42 @@
+.colorGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.colorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.colorChip:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.chipActive {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #4338ca;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.15);
+}
+
+.colorDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
