@@ -4,6 +4,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { type ClothesItem, type ClothingCategory, type OutfitState } from '../types'
 import { getAllClothes, getMatchingSuggestions } from '../functions/queries'
 import { logError } from '../functions/logger'
+import { MOCK_CLOTHES } from '../mocks/clothes.mock'
+import { isDbConfigured } from '../functions/cognoConnection'
 import { CatalogGrid } from '../components/CatalogGrid/CatalogGrid'
 import { MatchedOutfitPreview } from '../components/MatchedOutfitPreview/MatchedOutfitPreview'
 import styles from './index.module.css'
@@ -12,12 +14,15 @@ import styles from './index.module.css'
 
 /** Load all clothes on initial page load with centralized error handling */
 const fetchAllClothes = createServerFn({ method: 'GET' }).handler(async () => {
+  if (!isDbConfigured) {
+    return MOCK_CLOTHES
+  }
   try {
-    return await getAllClothes()
+    const items = await getAllClothes()
+    return items.length > 0 ? items : MOCK_CLOTHES
   } catch (error) {
     await logError('ServerFn: fetchAllClothes', error)
-    // Return empty list gracefully without breaking client render
-    return []
+    return MOCK_CLOTHES
   }
 })
 
@@ -25,6 +30,20 @@ const fetchAllClothes = createServerFn({ method: 'GET' }).handler(async () => {
 const fetchSuggestions = createServerFn({ method: 'GET' })
   .validator((ids: string[]) => ids)
   .handler(async ({ data: selectedIds }) => {
+    if (!isDbConfigured) {
+      // In-memory fallback scoring when DB is not configured
+      if (!selectedIds.length) return MOCK_CLOTHES
+      const selected = MOCK_CLOTHES.filter((c) => selectedIds.includes(c.id))
+      const usedCats = new Set(selected.map((c) => c.category))
+      const colors = new Set(selected.map((c) => c.color))
+      const stylesList = new Set(selected.map((c) => c.style))
+
+      return MOCK_CLOTHES.filter((c) => !usedCats.has(c.category)).sort((a, b) => {
+        const scoreA = (colors.has(a.color) ? 3 : 0) + (stylesList.has(a.style) ? 2 : 0)
+        const scoreB = (colors.has(b.color) ? 3 : 0) + (stylesList.has(b.style) ? 2 : 0)
+        return scoreB - scoreA
+      })
+    }
     try {
       return await getMatchingSuggestions(selectedIds)
     } catch (error) {

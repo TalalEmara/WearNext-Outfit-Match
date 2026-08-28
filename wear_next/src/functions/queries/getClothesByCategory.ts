@@ -20,11 +20,11 @@ export async function getClothesByCategory(category: ClothingCategory): Promise<
     return result.records.map((r) => {
       const itemName = r.get("itemName");
       return {
-        id:       r.get("id"),
+        id: r.get("id"),
         itemName,
         category: r.get("category") as ClothingCategory,
-        color:    r.get("color"),
-        style:    r.get("style"),
+        color: r.get("color"),
+        style: r.get("style"),
         imageUrl: getImageUrl(itemName),
       };
     });
