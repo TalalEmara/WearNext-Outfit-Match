@@ -23,6 +23,9 @@
 /* Right (outfit) panel – sticky so it stays in view while scrolling catalog */
 .outfitPanel {
   min-width: 300px;
+  position: sticky;
+  top: 80px; /* clears the Navbar height */
+  align-self: start;
 }
 
 /* ─── Mobile ──────────────────────────────────────────────────── */
