@@ -49,11 +49,32 @@ function App() {
   const [mobileView, setMobileView] = useState<'outfit' | 'catalog'>('outfit')
   const [activeSlot, setActiveSlot] = useState<ClothingCategory | null>(null)
 
-  // ── Filtered items (client-side category tab) ──────────────────
-  const filteredItems =
+  const CATEGORY_ORDER: ClothingCategory[] = ['Top', 'Bottom', 'Shoes']
+
+  function getNextEmptyCategory(currentCat: ClothingCategory, currentOutfit: OutfitState): ClothingCategory | null {
+    const currentIndex = CATEGORY_ORDER.indexOf(currentCat)
+    for (let i = 1; i <= CATEGORY_ORDER.length; i++) {
+      const nextCat = CATEGORY_ORDER[(currentIndex + i) % CATEGORY_ORDER.length]
+      if (!currentOutfit[nextCat]) {
+        return nextCat
+      }
+    }
+    return null
+  }
+
+  // ── Filtered items (client-side category tab with fallback) ────
+  const categoryMatchedItems =
     selectedCategory === 'All'
       ? catalogItems
       : catalogItems.filter((item) => item.category === selectedCategory)
+
+  // Fallback to all clothes for category if no match suggestions found in that category
+  const filteredItems =
+    categoryMatchedItems.length > 0
+      ? categoryMatchedItems
+      : selectedCategory === 'All'
+        ? allClothes
+        : allClothes.filter((item) => item.category === selectedCategory)
 
   // ── Refresh suggestions whenever outfit changes ────────────────
   async function refreshSuggestions(updatedOutfit: OutfitState) {
@@ -81,8 +102,19 @@ function App() {
   async function handleSelectItem(item: ClothesItem) {
     const updatedOutfit = { ...outfit, [item.category]: item }
     setOutfit(updatedOutfit)
-    setMobileView('outfit')
-    setActiveSlot(null)
+
+    const nextCategory = getNextEmptyCategory(item.category, updatedOutfit)
+
+    if (nextCategory) {
+      setActiveSlot(nextCategory)
+      setSelectedCategory(nextCategory)
+      setMobileView('catalog')
+    } else {
+      setActiveSlot(null)
+      setSelectedCategory('All')
+      setMobileView('outfit')
+    }
+
     await refreshSuggestions(updatedOutfit)
   }
 
@@ -90,12 +122,15 @@ function App() {
     e.stopPropagation()
     const updatedOutfit = { ...outfit, [category]: null }
     setOutfit(updatedOutfit)
+    setActiveSlot(category)
+    setSelectedCategory(category)
     await refreshSuggestions(updatedOutfit)
   }
 
   async function handleResetOutfit() {
     setOutfit({ Top: null, Bottom: null, Shoes: null })
     setActiveSlot(null)
+    setSelectedCategory('All')
     setCatalogItems(allClothes)
   }
 
