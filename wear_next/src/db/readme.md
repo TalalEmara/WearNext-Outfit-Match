@@ -47,6 +47,8 @@ In apparel recommendation engines, items must be matched across multiple aesthet
   intersected with:
   $$\text{Top} \xrightarrow{\text{:HAS\_STYLE}} \text{Style} \xleftarrow{\text{:HAS\_STYLE}} \text{Bottom}$$
 * **Zero-Maintenance Catalog Expansion:** When a new `ClothesItem` is created, it only needs edges to its corresponding `:Color` and `:Style`. All 2-hop and 3-hop outfit combinations are inferred automatically.
-* **Dynamic Stylist Overrides:** High-priority direct pairings (`:DIRECT_OVERRIDE`) allow editorial capsules to bypass the algorithmic inference engine without altering underlying data.
+* **Dynamic Stylist Overrides:** High-priority direct pairings (`:DIRECT_OVERRIDE`) allow editorial capsules to bypass the algorithmic inference engine without altering the underlying data.
 
 ---
+
+> **Scalability Note:** The current design assumes a personal wardrobe per user, where the total item count remains small enough to load in a single query. At this scale, eagerly fetching all clothes is acceptable and keeps the client simple. If the app scales to shared or multi-user wardrobes with significantly larger catalogs, each user's items should be scoped under a `:User` node — enabling per-user filtering at the query level rather than in application code.
