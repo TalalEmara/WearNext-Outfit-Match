@@ -1,0 +1,95 @@
+.slotCard {
+  border: 2px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+}
+
+.slotCard:hover {
+  border-color: #6366f1;
+  background: #fdfdfe;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+}
+
+.slotCardFilled {
+  border: 1px solid #e2e8f0;
+  border-style: solid;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.slotThumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.slotThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slotInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.slotLabel {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6366f1;
+}
+
+.slotItemName {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.slotSubText {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.emptySlotText {
+  font-size: 0.825rem;
+  color: #94a3b8;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.clearSlotBtn {
+  color: #94a3b8 !important;
+  padding: 0.35rem 0.5rem !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.clearSlotBtn:hover {
+  color: #ef4444 !important;
+  background: #fee2e2 !important;
+}
