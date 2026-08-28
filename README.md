@@ -6,14 +6,18 @@
 
 ## 📌 Table of Contents
 - [✨ The Use Case](#-the-use-case)
+- [🖥️ UI Gallery & Application Showcase](#️-ui-gallery--application-showcase)
 - [🕸️ Why a Graph Database?](#️-why-a-graph-database)
-  - [The Relational & Property-Based Anti-Pattern](#the-relational--property-based-anti-pattern)
-  - [The Graph Advantage (Index-Free Adjacency)](#the-graph-advantage-index-free-adjacency)
+- [📑 Architectural Decision Record (ADR)](#-architectural-decision-record-adr)
+  - [1. Context & Problem Statement](#1-context--problem-statement)
+  - [2. Considered Architectural Options](#2-considered-architectural-options)
+  - [3. Decision Outcome: Graph-Based First-Class Entities](#3-decision-outcome-graph-based-first-class-entities)
+  - [4. Scalability Considerations](#4-scalability-considerations)
 - [📊 Data Model & Architecture](#-data-model--architecture)
   - [Graph Schema Diagram](#graph-schema-diagram)
   - [Nodes (Labels)](#nodes-labels)
   - [Relationships (Edges)](#relationships-edges)
-- [🛠️ Setup and Run Instructions](#-setup-and-run-instructions)
+- [🛠️ Setup and Run Instructions](#️-setup-and-run-instructions)
   - [Prerequisites](#prerequisites)
   - [Step 1: Creating a CognoDB Instance](#step-1-creating-a-cognodb-instance)
   - [Step 2: Clone and Install Dependencies](#step-2-clone-and-install-dependencies)
@@ -28,6 +32,7 @@
 - [🖥️ UI & User Experience Walkthrough](#️-ui--user-experience-walkthrough)
   - [1. Interactive Outfit Builder (Homepage)](#1-interactive-outfit-builder-homepage)
   - [2. Add Clothes to Wardrobe (/clothes/add)](#2-add-clothes-to-wardrobe-clothesadd)
+  - [3. Responsive Mobile View](#3-responsive-mobile-view)
 - [📁 Project Structure](#-project-structure)
 - [📜 Tech Stack](#-tech-stack)
 
@@ -38,10 +43,29 @@
 Choosing an outfit involves multi-dimensional rules of harmony:
 - **Color Compatibility:** Does Navy Blue go with Beige? Does Olive Green complement Burgundy?
 - **Style Cohesion:** Does a Minimalist merino sweater pair with Formal tailored trousers or Streetwear baggy denim?
-- **Category Constraints:** An outfit consists of distinct item slots (Top + Bottom + Shoes). Adding a Top should filter recommendations for remaining empty slots (Bottom and Shoes) without suggesting duplicate Tops.
+- **Category Constraints:** An outfit consists of distinct item slots (`Top` + `Bottom` + `Shoes`). Adding a Top should filter recommendations for remaining empty slots (`Bottom` and `Shoes`) without suggesting duplicate Tops.
 - **Curated Stylist Overrides:** High-priority editorial looks (capsule collections) should instantly surface pairings that transcend basic algorithmic color rules.
 
 **WearNext** solves the *"what should I wear with this?"* problem in real-time. As you select an item (e.g., a *Classic Oxford White Shirt*), the recommendation engine traverses the knowledge graph to score and re-rank candidate bottoms and shoes by color harmony ratings, matching styles, and editorial pairings.
+
+---
+
+## 🖥️ UI Gallery & Application Showcase
+
+### 1. Homepage / Smart Outfit Matcher
+![Homepage](image.png)
+
+### 2. Add Clothes Modal
+![Add clothes](image-1.png)
+
+### 3. Category & Palette Customization
+![Color & Style Selection](image-2.png)
+
+### 4. Responsive Mobile Drawer View
+![Mobile Drawer View](image-4.png)
+
+### 5. Mobile Outfit Canvas
+![Mobile Canvas](image-5.png)
 
 ---
 
@@ -72,10 +96,44 @@ Graph Database (CognoDB / Neo4j):
 
 ---
 
+## 📑 Architectural Decision Record (ADR)
+
+### 1. Context & Problem Statement
+In apparel recommendation engines, items must be matched across multiple aesthetic dimensions (color harmony, occasion appropriateness, silhouette style, and stylist capsules). How should item attributes like color and style be modeled to optimize query latency and minimize maintenance overhead as the wardrobe expands?
+
+### 2. Considered Architectural Options
+1. **Option 1 — Property-Based Storage:** Store color, category, and style as raw string/scalar properties directly on `ClothesItem` nodes (e.g. `item.color = "Navy Blue"`, `item.style = "Formal"`).
+2. **Option 2 — Graph-Based First-Class Entities (Selected):** Extract `Color` and `Style` into independent first-class nodes connected via semantic edges (`:IN_COLOR`, `:HAS_STYLE`, `:COLOR_MATCHES`).
+
+---
+
+### 3. Decision Outcome: Graph-Based First-Class Entities
+
+#### Why Option 1 (Property-Based) Was Rejected:
+* **$O(N)$ Catalog Scans:** Querying for matching garments requires scanning every item node in the database to filter by color strings.
+* **Combinatorial Complexity:** Computing multi-item compatibility in application code requires nested iterations at $O(N \times M)$ complexity.
+* **Rigid Pairing Matrix:** Adding a new clothing item would require generating explicit matching edges to every compatible garment in the catalog.
+
+#### Why Option 2 (Graph-Based First-Class Entities) Was Chosen:
+* **Index-Free Adjacency ($O(d)$ Complexity):** Finding matching bottoms for a given top only traverses adjacent edges of the top's `:Color` and `:Style` nodes. Query complexity drops from $O(N)$ (total items in catalog) to $O(d)$ (degree of connected attribute nodes).
+* **Declarative Recommendation Deduction:** Outfit compatibility is resolved natively inside Cypher by traversing:
+  $$\text{Top} \xrightarrow{\text{:IN\_COLOR}} \text{Color}_1 \xrightarrow{\text{:COLOR\_MATCHES}} \text{Color}_2 \xleftarrow{\text{:IN\_COLOR}} \text{Bottom}$$
+  intersected with:
+  $$\text{Top} \xrightarrow{\text{:HAS\_STYLE}} \text{Style} \xleftarrow{\text{:HAS\_STYLE}} \text{Bottom}$$
+* **Zero-Maintenance Growth:** When a new `ClothesItem` is registered, it only needs edges to its corresponding `:Color` and `:Style`. All 2-hop and 3-hop outfit combinations are inferred automatically.
+* **Dynamic Stylist Overrides:** High-priority direct pairings (`:DIRECT_OVERRIDE`) allow editorial capsules to override or boost default algorithmic matching without schema changes.
+
+---
+
+### 4. Scalability Considerations
+* **Personal Wardrobes:** In single-user personal wardrobe scenarios, item counts remain compact, allowing low-latency query evaluation and simple caching.
+* **Multi-Tenant / Shared Wardrobes:** For multi-user or enterprise catalogs, items are easily partitioned under a `(:User)-[:OWNS]->(:ClothesItem)` relationship, enabling user-scoped query filtering directly in the Cypher execution plan.
+
+---
+
 ## 📊 Data Model & Architecture
 
 ### Graph Schema Diagram
-
 
 ![Graph Schema Diagram](wear_next/src/db/graph.png)
 
@@ -302,22 +360,7 @@ MERGE (i2)-[r2:DIRECT_OVERRIDE { rate: 5, note: $note }]->(i1)
   - Selecting an item automatically advances focus to the next empty slot.
   - Live Harmony Meter provides feedback on overall outfit cohesion.
 
-```
-+-------------------------------------------------------------+
-| WearNext               [Wardrobe] [Outfits] [Calendar]      |
-+------------------------------------+------------------------+
-| Wardrobe Catalog                   | Current Outfit         |
-| [All] [Tops] [Bottoms] [Shoes]     | +--------------------+ |
-|                                    | | Top: White Oxford  | |
-| +--------------+ +---------------+ | +--------------------+ |
-| | White Oxford | | Navy Trousers | | | Bottom: Navy Pants | |
-| | [Top]        | | [Bottom]      | | +--------------------+ |
-| | Style:Formal | | Style: Formal | | | Shoes: Tan Derby   | |
-| | +5 Harmony   | | +5 Harmony    | | +--------------------+ |
-| +--------------+ +---------------+ |  Harmony Score: 95%    |
-|                                    |  [Reset]   [Complete]  |
-+------------------------------------+------------------------+
-```
+![Homepage Outfit Builder](image.png)
 
 ### 2. Add Clothes to Wardrobe (`/clothes/add`)
 - Clean form to register new apparel into your graph database:
@@ -327,6 +370,17 @@ MERGE (i2)-[r2:DIRECT_OVERRIDE { rate: 5, note: $note }]->(i1)
   - **Style Selector:** Aesthetic pills (`Formal`, `Casual`, `Streetwear`, `Minimalist`).
   - **Photo Upload:** Upload preview with local storage in `/public/images/`.
 
+| Add Clothes View | Palette & Style Selection |
+| :---: | :---: |
+| ![Add Clothes View](image-1.png) | ![Palette Selection](image-2.png) |
+
+### 3. Responsive Mobile View
+- Dynamic drawer and tab view tailored for mobile screens, allowing seamless switching between catalog browsing and the current outfit canvas.
+
+| Mobile View Drawer | Mobile Canvas |
+| :---: | :---: |
+| ![Mobile View Drawer](image-4.png) | ![Mobile Canvas](image-5.png) |
+
 ---
 
 ## 📁 Project Structure
@@ -334,6 +388,11 @@ MERGE (i2)-[r2:DIRECT_OVERRIDE { rate: 5, note: $note }]->(i1)
 ```
 WearNext-Outfit-Match/
 ├── README.md                          # Main project documentation
+├── image.png                          # UI Screenshot: Homepage
+├── image-1.png                        # UI Screenshot: Add clothes form
+├── image-2.png                        # UI Screenshot: Style and color picker
+├── image-4.png                        # UI Screenshot: Mobile catalog drawer
+├── image-5.png                        # UI Screenshot: Mobile outfit canvas
 └── wear_next/
     ├── .env                           # CognoDB connection secrets
     ├── package.json                   # Scripts and project dependencies

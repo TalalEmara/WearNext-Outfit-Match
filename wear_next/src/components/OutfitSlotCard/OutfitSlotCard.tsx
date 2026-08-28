@@ -18,6 +18,12 @@ export const OutfitSlotCard: React.FC<OutfitSlotCardProps> = ({
   onClear,
   fallbackIcon,
 }) => {
+  const [imgError, setImgError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [item?.imageUrl, item?.id]);
+
   const defaultFallbackIcons: Record<ClothingCategory, React.ReactNode> = {
     Top: (
       <svg
@@ -70,11 +76,12 @@ export const OutfitSlotCard: React.FC<OutfitSlotCardProps> = ({
       onClick={onClick}
     >
       <div className={styles.slotThumb}>
-        {item?.imageUrl ? (
+        {item?.imageUrl && !imgError ? (
           <img
             src={item.imageUrl}
             alt={item.itemName}
             className={styles.slotThumbImg}
+            onError={() => setImgError(true)}
           />
         ) : (
           fallbackIcon || defaultFallbackIcons[category]

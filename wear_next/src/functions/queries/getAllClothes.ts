@@ -1,5 +1,6 @@
 import { driver } from "../cognoConnection";
 import { type ClothesItem, type ClothingCategory } from "../../types";
+import { getImageUrl } from "../getImageUrl";
 
 export async function getAllClothes(): Promise<ClothesItem[]> {
   const session = driver.session();
@@ -27,7 +28,7 @@ export async function getAllClothes(): Promise<ClothesItem[]> {
         category: r.get("category") as ClothingCategory,
         color:    r.get("color"),
         style:    r.get("style"),
-        imageUrl: `/images/${itemName}`,
+        imageUrl: getImageUrl(itemName),
       };
     });
   } finally {

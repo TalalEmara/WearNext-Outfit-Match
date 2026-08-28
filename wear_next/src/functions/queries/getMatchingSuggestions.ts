@@ -1,6 +1,7 @@
 import { driver } from "../cognoConnection";
 import { type ClothesItem, type ClothingCategory } from "../../types";
 import { getAllClothes } from "./getAllClothes";
+import { getImageUrl } from "../getImageUrl";
 
 /**
  * Returns clothing items that match the already-selected items.
@@ -85,7 +86,7 @@ export async function getMatchingSuggestions(
         category: r.get("category") as ClothingCategory,
         color:    r.get("color"),
         style:    r.get("style"),
-        imageUrl: `/images/${itemName}`,
+        imageUrl: getImageUrl(itemName),
       };
     });
   } finally {
